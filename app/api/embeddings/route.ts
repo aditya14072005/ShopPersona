@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { PRODUCTS } from '@/lib/products';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let openai: OpenAI | null = null;
+
+// Initialize OpenAI only if API key exists
+if (process.env.OPENAI_API_KEY) {
+  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
 
 // Cache embeddings in module scope (persists across requests in same worker)
 let embeddingsCache: Record<string, number[]> | null = null;
@@ -29,6 +34,13 @@ async function generateAllEmbeddings() {
 
 export async function GET() {
   try {
+    if (!openai) {
+      return NextResponse.json(
+        { error: 'Embeddings are not configured. Please set OPENAI_API_KEY.' },
+        { status: 503 },
+      );
+    }
+
     const embeddings = await generateAllEmbeddings();
     return NextResponse.json({ embeddings });
   } catch (err) {
@@ -39,6 +51,13 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!openai) {
+      return NextResponse.json(
+        { error: 'Embeddings are not configured. Please set OPENAI_API_KEY.' },
+        { status: 503 },
+      );
+    }
+
     const { texts } = await req.json();
     if (!Array.isArray(texts) || !texts.length) {
       return NextResponse.json({ error: 'texts array required' }, { status: 400 });

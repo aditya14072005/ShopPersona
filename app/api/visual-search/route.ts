@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { PRODUCTS } from '@/lib/products';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let openai: OpenAI | null = null;
+
+// Initialize OpenAI only if API key exists
+if (process.env.OPENAI_API_KEY) {
+  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
 
 let productEmbeddingsCache: { id: string; embedding: number[] }[] | null = null;
 
@@ -23,6 +28,13 @@ async function getProductEmbeddings() {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!openai) {
+      return NextResponse.json(
+        { error: 'Visual search is not configured. Please set OPENAI_API_KEY.' },
+        { status: 503 },
+      );
+    }
+
     const { imageUrl } = await req.json();
     if (!imageUrl) return NextResponse.json({ error: 'imageUrl required' }, { status: 400 });
 

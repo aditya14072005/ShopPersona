@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { PRODUCTS } from '@/lib/products';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let openai: OpenAI | null = null;
+
+// Initialize OpenAI only if API key exists
+if (process.env.OPENAI_API_KEY) {
+  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
 
 const SYSTEM_PROMPT = `You are a helpful shopping assistant for ShopPersona, an AI-powered e-commerce store.
 You help customers find products from our catalogue. Be friendly, concise, and always recommend specific products by name when relevant.
@@ -14,6 +19,13 @@ Only recommend products from this catalogue. If asked about something we don't c
 
 export async function POST(req: NextRequest) {
   try {
+    if (!openai) {
+      return NextResponse.json(
+        { error: 'AI assistant is not configured. Please set OPENAI_API_KEY.' },
+        { status: 503 },
+      );
+    }
+
     const { messages } = await req.json();
 
     const completion = await openai.chat.completions.create({
