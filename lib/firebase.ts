@@ -12,13 +12,31 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase (avoid re-initializing on hot reload)
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+// Initialize Firebase only if required environment variables are set
+let app: any = null;
+let auth: any = null;
+let db: any = null;
+let storage: any = null;
 
-// Initialize Firebase services
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
+if (
+  firebaseConfig.apiKey &&
+  firebaseConfig.authDomain &&
+  firebaseConfig.projectId &&
+  firebaseConfig.storageBucket
+) {
+  try {
+    // Initialize Firebase (avoid re-initializing on hot reload)
+    app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+
+    // Initialize Firebase services
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+  } catch (err) {
+    console.error('Firebase initialization failed:', err);
+    // Leave auth, db, storage as null to gracefully handle the error
+  }
+}
 
 export { auth, db, storage };
 export default app;
