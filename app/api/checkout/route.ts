@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+let stripe: Stripe | null = null;
+
+// Initialize Stripe only if API key exists
+if (process.env.STRIPE_SECRET_KEY) {
+  stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+}
 
 export async function POST(req: NextRequest) {
   try {
+    if (!stripe) {
+      return NextResponse.json(
+        { error: 'Payment processing is not configured. Please set STRIPE_SECRET_KEY.' },
+        { status: 503 },
+      );
+    }
+
     const { items, userId, shipping } = await req.json();
 
     const lineItems = items.map((item: { name: string; price: number; quantity: number; image: string }) => ({
