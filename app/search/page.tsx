@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 import { ProductCard } from '@/components/ProductCard';
@@ -9,7 +9,7 @@ import { VisualSearch } from '@/components/VisualSearch';
 import { PRODUCTS, CATEGORIES } from '@/lib/products';
 import { X } from 'lucide-react';
 
-export default function SearchPage() {
+function SearchPageContent() {
   const searchParams = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [priceRange, setPriceRange] = useState([0, 500]);
@@ -156,5 +156,13 @@ export default function SearchPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SearchPageContent />
+    </Suspense>
   );
 }

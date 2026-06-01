@@ -3,20 +3,40 @@ import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { PRODUCTS } from '@/lib/products';
 
-if (!getApps().length) {
-  initializeApp({
-    credential: cert({
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
-}
+let adminDb: any = null;
 
-const adminDb = getFirestore();
+// Only initialize Firebase Admin if credentials are available
+if (
+  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
+  process.env.FIREBASE_CLIENT_EMAIL &&
+  process.env.FIREBASE_PRIVATE_KEY
+) {
+  try {
+    if (!getApps().length) {
+      initializeApp({
+        credential: cert({
+          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        }),
+      });
+    }
+    adminDb = getFirestore();
+  } catch (err) {
+    // Firebase initialization failed - will return error when route is called
+    console.error('Firebase initialization failed:', err);
+  }
+}
 
 export async function GET(req: NextRequest) {
   try {
+    if (!adminDb) {
+      return NextResponse.json(
+        { error: 'Firebase not configured. Please set Firebase environment variables.' },
+        { status: 503 },
+      );
+    }
+
     const userId = req.nextUrl.searchParams.get('userId');
     if (!userId) return NextResponse.json({ results: [] });
 

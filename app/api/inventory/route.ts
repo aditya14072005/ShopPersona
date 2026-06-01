@@ -3,17 +3,30 @@ import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { PRODUCTS } from '@/lib/products';
 
-if (!getApps().length) {
-  initializeApp({
-    credential: cert({
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
-}
+let adminDb: any = null;
 
-const adminDb = getFirestore();
+// Only initialize Firebase Admin if credentials are available
+if (
+  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
+  process.env.FIREBASE_CLIENT_EMAIL &&
+  process.env.FIREBASE_PRIVATE_KEY
+) {
+  try {
+    if (!getApps().length) {
+      initializeApp({
+        credential: cert({
+          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        }),
+      });
+    }
+    adminDb = getFirestore();
+  } catch (err) {
+    // Firebase initialization failed - will return error when route is called
+    console.error('Firebase initialization failed:', err);
+  }
+}
 
 // Dynamic pricing: low stock = higher price, high stock = slight discount
 function computeDynamicPrice(basePrice: number, stock: number): number {
@@ -25,6 +38,13 @@ function computeDynamicPrice(basePrice: number, stock: number): number {
 
 export async function GET() {
   try {
+    if (!adminDb) {
+      return NextResponse.json(
+        { error: 'Firebase not configured. Please set Firebase environment variables.' },
+        { status: 503 },
+      );
+    }
+
     const snap = await adminDb.collection('inventory').get();
     const stored: Record<string, number> = {};
     snap.forEach((doc) => { stored[doc.id] = doc.data().stock; });
