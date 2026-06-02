@@ -13,6 +13,7 @@ import { useReviews, type Review } from '@/lib/reviews-context';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Star, ShoppingCart, Heart, Share2 } from 'lucide-react';
+import { ProductQA } from '@/components/ProductQA';
 import Image from 'next/image';
 
 export default function ProductDetailPage() {
@@ -24,7 +25,7 @@ export default function ProductDetailPage() {
   const { user, userProfile } = useAuth();
   const isAdmin = userProfile?.role === 'admin';
   const { trackView } = useRecommendations();
-  const { getReviews, submitReview } = useReviews();
+  const { getReviews, subscribeReviews, submitReview, hasReviewed } = useReviews();
 
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -34,16 +35,20 @@ export default function ProductDetailPage() {
   const [reviewComment, setReviewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState('');
+  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
 
   useEffect(() => {
     if (!product) return;
     trackView(product.id);
-    getReviews(product.id).then(setReviews);
+    // Live reviews subscription
+    const unsub = subscribeReviews(product.id, setReviews);
     if (user) {
       getDoc(doc(db, 'wishlists', user.uid)).then((snap) => {
         if (snap.exists()) setIsWishlisted((snap.data().productIds ?? []).includes(product.id));
       });
+      hasReviewed(product.id).then(setAlreadyReviewed);
     }
+    return unsub;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id, user?.uid]);
 
@@ -101,11 +106,11 @@ export default function ProductDetailPage() {
     setReviewError('');
     try {
       await submitReview(product.id, reviewRating, reviewComment);
-      setReviews(await getReviews(product.id));
       setReviewComment('');
       setReviewRating(5);
-    } catch {
-      setReviewError('Failed to submit review. Please try again.');
+      setAlreadyReviewed(true);
+    } catch (err) {
+      setReviewError(err instanceof Error ? err.message : 'Failed to submit review.');
     } finally {
       setSubmitting(false);
     }
@@ -244,6 +249,10 @@ export default function ProductDetailPage() {
               <h3 className="text-lg font-bold text-foreground mb-4">Write a Review</h3>
               {!user ? (
                 <p className="text-muted-foreground text-sm"><a href="/login" className="text-primary hover:underline">Log in</a> to leave a review.</p>
+              ) : isAdmin ? (
+                <p className="text-muted-foreground text-sm">Admins cannot submit reviews.</p>
+              ) : alreadyReviewed ? (
+                <p className="text-sm text-green-400 font-medium">✓ You&apos;ve already reviewed this product.</p>
               ) : (
                 <form onSubmit={handleSubmitReview} className="space-y-4">
                   <div>
@@ -269,6 +278,9 @@ export default function ProductDetailPage() {
             </div>
           </div>
         </section>
+
+        {/* Q&A */}
+        <ProductQA productId={id} />
 
         {/* Related Products */}
         <section>

@@ -75,6 +75,16 @@ service cloud.firestore {
       }
     }
 
+    // Product Q&A — public read, authenticated ask, verified/admin answer
+    match /product_qa/{questionId} {
+      allow read: if true;
+      allow create: if isAuth();
+      match /answers/{answerId} {
+        allow read: if true;
+        allow create: if isAuth();
+      }
+    }
+
     // Daily deal override — public read, admin write
     match /daily_deal/{docId} {
       allow read: if true;
