@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: is the user authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper: is this the owner
+    function isOwner(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
+    // Helper: is the requester an admin
+    function isAdmin() {
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Users
+    match /users/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    // Carts
+    match /carts/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Orders — any authenticated user can create/read; admin can delete
+    match /orders/{orderId} {
+      allow read, create, update: if isAuth();
+      allow delete: if isAdmin();
+    }
+
+    // Wishlists
+    match /wishlists/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Saved addresses
+    match /user_addresses/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Payment preferences
+    match /user_payments/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // User behavior (AI recommendations)
+    match /user_behavior/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Reviews — public read, authenticated write
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuth();
+    }
+
+    // Returns
+    match /returns/{returnId} {
+      allow read, create, update: if isAuth();
+      match /messages/{msgId} {
+        allow read, create: if isAuth();
+      }
+    }
+
+    // Support tickets — user can create/read their own; admin full access
+    match /support_tickets/{ticketId} {
+      allow read, create, update: if isAuth();
+      match /messages/{msgId} {
+        allow read, create: if isAuth();
+      }
+    }
+
+    // Product presence (real-time viewers)
+    match /product_presence/{productId} {
+      allow read, write: if isAuth();
+    }
+
+    // Inventory — public read, admin write
+    match /inventory/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Products catalogue — public read, admin write
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

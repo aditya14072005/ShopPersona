@@ -10,14 +10,13 @@ import { useAuth } from '@/lib/auth-context';
 
 export default function CartPage() {
   const { items, total, removeFromCart, updateQuantity, loading } = useCart();
-  const { user, loading: authLoading } = useAuth();
+  const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, authLoading, router]);
+    if (!authLoading && !user) { router.push('/login'); return; }
+    if (!authLoading && userProfile?.role === 'admin') { router.push('/admin'); return; }
+  }, [user, userProfile, authLoading, router]);
 
   const cartItems = items;
 
