@@ -3,7 +3,7 @@
 import React, { createContext, useContext } from 'react';
 import { db } from './firebase';
 import {
-  collection, addDoc, query, where, getDocs, orderBy, onSnapshot,
+  collection, addDoc, query, where, getDocs, onSnapshot,
 } from 'firebase/firestore';
 import { useAuth } from './auth-context';
 
@@ -30,30 +30,30 @@ export function ReviewsProvider({ children }: { children: React.ReactNode }) {
   const { user, userProfile } = useAuth();
 
   const reviewQuery = (productId: string) =>
-    query(
-      collection(db, 'reviews'),
-      where('productId', '==', productId),
-      orderBy('createdAt', 'desc'),
-    );
+    query(collection(db, 'reviews'), where('productId', '==', productId));
 
   const getReviews = async (productId: string): Promise<Review[]> => {
     const snap = await getDocs(reviewQuery(productId));
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Review));
+    return snap.docs
+      .map((d) => ({ id: d.id, ...d.data() } as Review))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   };
 
-  // Live subscription — avoids stale display after submit
   const subscribeReviews = (productId: string, cb: (reviews: Review[]) => void) =>
-    onSnapshot(reviewQuery(productId), (snap) =>
-      cb(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Review))),
+    onSnapshot(
+      reviewQuery(productId),
+      (snap) => cb(
+        snap.docs
+          .map((d) => ({ id: d.id, ...d.data() } as Review))
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+      ),
+      (err) => console.error('subscribeReviews error:', err),
     );
 
-  // Returns true if this user already reviewed this product
   const hasReviewed = async (productId: string): Promise<boolean> => {
     if (!user) return false;
-    const snap = await getDocs(
-      query(collection(db, 'reviews'), where('productId', '==', productId), where('userId', '==', user.uid)),
-    );
-    return !snap.empty;
+    const snap = await getDocs(reviewQuery(productId));
+    return snap.docs.some((d) => d.data().userId === user.uid);
   };
 
   const submitReview = async (productId: string, rating: number, comment: string) => {
