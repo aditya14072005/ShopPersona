@@ -45,6 +45,27 @@ interface SupportTicket {
 }
 interface SupportMessage { id: string; sender: 'user' | 'admin'; text: string; createdAt: string; }
 
+// ─── Notification bell counts (live) ─────────────────────────────────────────
+function useInboxCounts() {
+  const [pendingSupport, setPendingSupport] = useState(0);
+  const [pendingReturns, setPendingReturns] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
+  useEffect(() => {
+    const u1 = onSnapshot(collection(db, 'support_tickets'), (snap) => {
+      setPendingSupport(snap.docs.filter((d) => d.data().status === 'open').length);
+    });
+    const u2 = onSnapshot(collection(db, 'returns'), (snap) => {
+      const docs = snap.docs.map((d) => d.data());
+      setPendingReturns(docs.filter((d) => d.status === 'pending').length);
+      setUnreadMessages(docs.filter((d) => d.hasUnread).length);
+    });
+    return () => { u1(); u2(); };
+  }, []);
+
+  return { pendingSupport, pendingReturns, unreadMessages };
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CATEGORY_COLORS: Record<string, string> = {
   Electronics: '#7C3AED', Fashion: '#10B981', Home: '#06B6D4',
@@ -216,7 +237,7 @@ function AnalyticsTab({ orders, returns, userCount }: { orders: Order[]; returns
                   <CartesianGrid strokeDasharray="3 3" stroke="#2D3748" />
                   <XAxis type="number" stroke="#A0AEC0" />
                   <YAxis type="category" dataKey="name" stroke="#A0AEC0" width={75} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number | string | undefined) => [`$${Number(v ?? 0).toFixed(0)}`, 'Revenue']} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`$${Number(v ?? 0).toFixed(0)}`, 'Revenue']} />
                   <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>
                     {catData.map((c, i) => <Cell key={i} fill={c.color} />)}
                   </Bar>
@@ -231,7 +252,26 @@ function AnalyticsTab({ orders, returns, userCount }: { orders: Order[]; returns
 }
 
 // ─── Overview Tab ────────────────────────────────────────────────────────────
-function OverviewTab({ orders, returns, userCount }: { orders: Order[]; returns: ReturnRequest[]; userCount: number }) {
+function OverviewTab({ orders, returns, userCount, onNavigate }: {
+  orders: Order[]; returns: ReturnRequest[]; userCount: number; onNavigate: (tab: Tab) => void;
+}) {
+  const { pendingSupport, pendingReturns, unreadMessages } = useInboxCounts();
+  const totalInbox = pendingSupport + pendingReturns + unreadMessages;
+
+  const [openTickets, setOpenTickets] = useState<SupportTicket[]>([]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'support_tickets'), (snap) =>
+      setOpenTickets(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SupportTicket))
+        .filter((t) => t.status === 'open')
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 5))
+    );
+    return unsub;
+  }, []);
+
+  const pendingReturnList = (returns as (ReturnRequest & { hasUnread?: boolean })[])
+    .filter((r) => r.status === 'pending' || r.hasUnread).slice(0, 5);
+
   const totalRevenue = orders.reduce((s, o) => s + (o.total || 0), 0);
 
   const revenueByMonth: Record<string, number> = {};
@@ -281,8 +321,8 @@ function OverviewTab({ orders, returns, userCount }: { orders: Order[]; returns:
           { label: 'Total Revenue',   value: `$${totalRevenue.toFixed(0)}`, icon: TrendingUp,  color: 'bg-primary/20 text-primary' },
           { label: 'Total Orders',    value: orders.length,                  icon: ShoppingCart, color: 'bg-accent/20 text-accent' },
           { label: 'Total Users',     value: userCount,                      icon: Users,        color: 'bg-secondary/20 text-secondary' },
-          { label: 'Pending Returns', value: returns.filter(r => r.status === 'pending').length, icon: RefreshCw, color: 'bg-yellow-500/20 text-yellow-400',
-            sub: `${returns.length} total requests` },
+          { label: 'Pending Inbox',   value: totalInbox,                     icon: MessageSquare, color: totalInbox > 0 ? 'bg-red-500/20 text-red-400' : 'bg-muted text-muted-foreground',
+            sub: `${pendingSupport} support · ${pendingReturns} returns · ${unreadMessages} unread` },
         ].map(({ label, value, icon: Icon, color, sub }) => (
           <div key={label} className="bg-card border border-border rounded-lg p-6">
             <div className="flex items-center justify-between">
@@ -396,6 +436,71 @@ function OverviewTab({ orders, returns, userCount }: { orders: Order[]; returns:
           </div>
         )}
       </div>
+      {/* Notifications panel */}
+      {(openTickets.length > 0 || pendingReturnList.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Open support tickets */}
+          {openTickets.length > 0 && (
+            <div className="bg-card border border-red-500/20 rounded-lg p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  New Support Tickets
+                </h2>
+                <button onClick={() => onNavigate('support')}
+                  className="text-xs text-primary hover:underline">View all</button>
+              </div>
+              <div className="space-y-2">
+                {openTickets.map((t) => (
+                  <div key={t.id} className="flex items-center justify-between px-3 py-2 bg-muted/40 rounded-lg">
+                    <div>
+                      <p className="text-xs font-mono text-foreground">{t.orderId.slice(0, 14)}…</p>
+                      <p className="text-xs text-muted-foreground">{new Date(t.createdAt).toLocaleString()}</p>
+                    </div>
+                    <button onClick={() => onNavigate('support')}
+                      className="text-xs font-semibold px-2 py-1 rounded-lg bg-primary/20 text-primary hover:bg-primary/30">
+                      Reply
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Pending returns / unread */}
+          {pendingReturnList.length > 0 && (
+            <div className="bg-card border border-yellow-500/20 rounded-lg p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                  Pending Returns / Unread
+                </h2>
+                <button onClick={() => onNavigate('returns')}
+                  className="text-xs text-primary hover:underline">View all</button>
+              </div>
+              <div className="space-y-2">
+                {pendingReturnList.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between px-3 py-2 bg-muted/40 rounded-lg">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-medium text-foreground">{r.itemName}</p>
+                        {(r as ReturnRequest & { hasUnread?: boolean }).hasUnread && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground capitalize">{r.type} · {r.status}</p>
+                    </div>
+                    <button onClick={() => onNavigate('returns')}
+                      className="text-xs font-semibold px-2 py-1 rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30">
+                      Review
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1600,6 +1705,12 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
+  const { pendingSupport, pendingReturns, unreadMessages } = useInboxCounts();
+  const TAB_BADGES: Partial<Record<Tab, number>> = {
+    support: pendingSupport,
+    returns: pendingReturns + unreadMessages,
+  };
+
   // Auth guard
   useEffect(() => {
     if (!loading && userProfile && userProfile.role !== 'admin') router.push('/');
@@ -1680,7 +1791,7 @@ export default function AdminDashboard() {
               <button
                 key={key}
                 onClick={() => setTab(key)}
-                className={`flex flex-col items-center gap-1 px-2 py-3 rounded-xl text-xs font-semibold transition-colors border ${
+                className={`relative flex flex-col items-center gap-1 px-2 py-3 rounded-xl text-xs font-semibold transition-colors border ${
                   tab === key
                     ? 'bg-primary/10 border-primary text-primary'
                     : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/40'
@@ -1688,6 +1799,9 @@ export default function AdminDashboard() {
               >
                 <Icon className="w-5 h-5" />
                 {label}
+                {(TAB_BADGES[key] ?? 0) > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500" />
+                )}
               </button>
             ))}
           </div>
@@ -1697,7 +1811,7 @@ export default function AdminDashboard() {
               <button
                 key={key}
                 onClick={() => setTab(key)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px ${
+                className={`relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px ${
                   tab === key
                     ? 'border-primary text-primary'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -1705,13 +1819,16 @@ export default function AdminDashboard() {
               >
                 <Icon className="w-4 h-4" />
                 {label}
+                {(TAB_BADGES[key] ?? 0) > 0 && (
+                  <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+                )}
               </button>
             ))}
           </div>
         </div>
 
         {/* Tab content */}
-        {tab === 'overview'   && <OverviewTab orders={orders} returns={returns} userCount={users.length} />}
+        {tab === 'overview'   && <OverviewTab orders={orders} returns={returns} userCount={users.length} onNavigate={setTab} />}
         {tab === 'analytics'  && <AnalyticsTab orders={orders} returns={returns} userCount={users.length} />}
         {tab === 'orders'     && <OrdersTab orders={orders} />}
         {tab === 'returns'    && <ReturnsTab returns={returns} />}

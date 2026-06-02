@@ -6,7 +6,7 @@ import { Navbar } from '@/components/Navbar';
 import { useAuth } from '@/lib/auth-context';
 import { db } from '@/lib/firebase';
 import {
-  collection, query, where, onSnapshot, addDoc, updateDoc, doc,
+  collection, query, where, onSnapshot, addDoc, updateDoc, doc, orderBy,
 } from 'firebase/firestore';
 import {
   RefreshCw, Package, CheckCircle, Clock, XCircle, Truck, MessageSquare,
