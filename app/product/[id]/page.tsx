@@ -25,7 +25,7 @@ export default function ProductDetailPage() {
   const { user, userProfile } = useAuth();
   const isAdmin = userProfile?.role === 'admin';
   const { trackView } = useRecommendations();
-  const { getReviews, subscribeReviews, submitReview, hasReviewed } = useReviews();
+  const { getReviews, subscribeReviews, submitReview } = useReviews();
 
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -35,21 +35,20 @@ export default function ProductDetailPage() {
   const [reviewComment, setReviewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState('');
-  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
-
   const [hoverRating, setHoverRating] = useState(0);
   const [showAllReviews, setShowAllReviews] = useState(false);
+
+  // Derived — no separate async call needed
+  const alreadyReviewed = !!user && reviews.some((r) => r.userId === user.uid);
 
   useEffect(() => {
     if (!product) return;
     trackView(product.id);
-    // Live reviews subscription
     const unsub = subscribeReviews(product.id, setReviews);
     if (user) {
       getDoc(doc(db, 'wishlists', user.uid)).then((snap) => {
         if (snap.exists()) setIsWishlisted((snap.data().productIds ?? []).includes(product.id));
       });
-      hasReviewed(product.id).then(setAlreadyReviewed);
     }
     return unsub;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -111,7 +110,6 @@ export default function ProductDetailPage() {
       await submitReview(product.id, reviewRating, reviewComment);
       setReviewComment('');
       setReviewRating(5);
-      setAlreadyReviewed(true);
     } catch (err) {
       setReviewError(err instanceof Error ? err.message : 'Failed to submit review.');
     } finally {
