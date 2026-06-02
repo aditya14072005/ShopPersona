@@ -12,7 +12,7 @@ import { useRecommendations } from '@/lib/recommendations-context';
 import { useReviews, type Review } from '@/lib/reviews-context';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { Star, ShoppingCart, Heart, Share2 } from 'lucide-react';
+import { Star, ShoppingCart, Heart, Share2, Pencil, Trash2 } from 'lucide-react';
 import { ProductQA } from '@/components/ProductQA';
 import Image from 'next/image';
 
@@ -25,7 +25,7 @@ export default function ProductDetailPage() {
   const { user, userProfile } = useAuth();
   const isAdmin = userProfile?.role === 'admin';
   const { trackView } = useRecommendations();
-  const { getReviews, subscribeReviews, submitReview } = useReviews();
+  const { getReviews, subscribeReviews, submitReview, editReview, deleteReview } = useReviews();
 
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -37,6 +37,12 @@ export default function ProductDetailPage() {
   const [reviewError, setReviewError] = useState('');
   const [hoverRating, setHoverRating] = useState(0);
   const [showAllReviews, setShowAllReviews] = useState(false);
+  const [editingReview, setEditingReview] = useState<Review | null>(null);
+  const [editRating, setEditRating] = useState(5);
+  const [editHover, setEditHover] = useState(0);
+  const [editComment, setEditComment] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   // Derived — no separate async call needed
   const alreadyReviewed = !!user && reviews.some((r) => r.userId === user.uid);
@@ -99,6 +105,23 @@ export default function ProductDetailPage() {
       console.error('Wishlist error:', err);
       alert('Failed to update wishlist. Please make sure you are logged in.');
     }
+  };
+
+  const handleEditReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingReview) return;
+    setEditSubmitting(true);
+    try {
+      await editReview(editingReview.id, editRating, editComment);
+      setEditingReview(null);
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleDeleteReview = async (reviewId: string) => {
+    await deleteReview(reviewId);
+    setDeleteConfirm(null);
   };
 
   const handleSubmitReview = async (e: React.FormEvent) => {
@@ -272,32 +295,92 @@ export default function ProductDetailPage() {
                 <>
                   {(showAllReviews ? reviews : reviews.slice(0, 4)).map((review) => (
                     <div key={review.id} className="bg-card border border-border rounded-xl p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary flex-shrink-0">
-                            {review.userName.charAt(0).toUpperCase()}
+                      {editingReview?.id === review.id ? (
+                        /* Inline edit form */
+                        <form onSubmit={handleEditReview} className="space-y-3">
+                          <div className="flex gap-1">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <button key={i} type="button"
+                                onClick={() => setEditRating(i + 1)}
+                                onMouseEnter={() => setEditHover(i + 1)}
+                                onMouseLeave={() => setEditHover(0)}>
+                                <Star className={`w-6 h-6 transition-colors ${
+                                  i < (editHover || editRating) ? 'fill-accent text-accent' : 'text-muted-foreground'
+                                }`} />
+                              </button>
+                            ))}
                           </div>
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">{review.userName}</p>
-                            <p className="text-xs text-muted-foreground">{new Date(review.createdAt).toLocaleDateString()}</p>
+                          <textarea value={editComment} onChange={(e) => setEditComment(e.target.value)} required rows={3}
+                            className="w-full bg-muted text-foreground px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary resize-none text-sm" />
+                          <div className="flex gap-2">
+                            <button type="submit" disabled={editSubmitting}
+                              className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                              {editSubmitting ? 'Saving…' : 'Save'}
+                            </button>
+                            <button type="button" onClick={() => setEditingReview(null)}
+                              className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-muted text-muted-foreground hover:text-foreground">
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
+                      ) : deleteConfirm === review.id ? (
+                        /* Delete confirm */
+                        <div className="space-y-2">
+                          <p className="text-sm text-foreground font-medium">Delete your review?</p>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleDeleteReview(review.id)}
+                              className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30">
+                              Yes, delete
+                            </button>
+                            <button onClick={() => setDeleteConfirm(null)}
+                              className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-muted text-muted-foreground hover:text-foreground">
+                              Cancel
+                            </button>
                           </div>
                         </div>
-                        <div className="flex gap-0.5">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star key={i} className={`w-4 h-4 ${
-                              i < review.rating ? 'fill-accent text-accent' : 'text-muted-foreground'
-                            }`} />
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{review.comment}</p>
+                      ) : (
+                        /* Normal view */
+                        <>
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary flex-shrink-0">
+                                {review.userName.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-foreground">{review.userName}</p>
+                                <p className="text-xs text-muted-foreground">{new Date(review.createdAt).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex gap-0.5">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <Star key={i} className={`w-4 h-4 ${
+                                    i < review.rating ? 'fill-accent text-accent' : 'text-muted-foreground'
+                                  }`} />
+                                ))}
+                              </div>
+                              {user?.uid === review.userId && (
+                                <div className="flex gap-1 ml-1">
+                                  <button onClick={() => { setEditingReview(review); setEditRating(review.rating); setEditComment(review.comment); }}
+                                    className="p-1 rounded text-muted-foreground hover:text-primary transition-colors">
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={() => setDeleteConfirm(review.id)}
+                                    className="p-1 rounded text-muted-foreground hover:text-red-400 transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{review.comment}</p>
+                        </>
+                      )}
                     </div>
                   ))}
                   {reviews.length > 4 && (
-                    <button
-                      onClick={() => setShowAllReviews(!showAllReviews)}
-                      className="text-sm text-primary hover:underline font-medium"
-                    >
+                    <button onClick={() => setShowAllReviews(!showAllReviews)}
+                      className="text-sm text-primary hover:underline font-medium">
                       {showAllReviews ? 'Show less' : `Show all ${reviews.length} reviews`}
                     </button>
                   )}
@@ -305,28 +388,30 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            {/* Write a review */}
+            {/* Write / already reviewed */}
             <div className="bg-card border border-border rounded-xl p-6 h-fit">
-              <h3 className="text-lg font-bold text-foreground mb-4">Write a Review</h3>
+              <h3 className="text-lg font-bold text-foreground mb-4">
+                {alreadyReviewed ? 'Your Review' : 'Write a Review'}
+              </h3>
               {!user ? (
                 <p className="text-muted-foreground text-sm"><a href="/login" className="text-primary hover:underline">Log in</a> to leave a review.</p>
               ) : isAdmin ? (
                 <p className="text-muted-foreground text-sm">Admins cannot submit reviews.</p>
               ) : alreadyReviewed ? (
-                <p className="text-sm text-green-400 font-medium">✓ You&apos;ve already reviewed this product.</p>
+                <div className="space-y-2">
+                  <p className="text-sm text-green-400 font-medium">✓ You&apos;ve reviewed this product.</p>
+                  <p className="text-xs text-muted-foreground">Find your review in the list and click the pencil icon to edit, or the trash icon to delete it.</p>
+                </div>
               ) : (
                 <form onSubmit={handleSubmitReview} className="space-y-4">
                   <div>
                     <label className="block text-sm font-semibold text-foreground mb-2">Rating</label>
                     <div className="flex gap-1">
                       {Array.from({ length: 5 }).map((_, i) => (
-                        <button
-                          key={i}
-                          type="button"
+                        <button key={i} type="button"
                           onClick={() => setReviewRating(i + 1)}
                           onMouseEnter={() => setHoverRating(i + 1)}
-                          onMouseLeave={() => setHoverRating(0)}
-                        >
+                          onMouseLeave={() => setHoverRating(0)}>
                           <Star className={`w-7 h-7 transition-colors ${
                             i < (hoverRating || reviewRating) ? 'fill-accent text-accent' : 'text-muted-foreground'
                           }`} />

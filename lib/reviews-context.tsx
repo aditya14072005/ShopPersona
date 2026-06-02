@@ -3,7 +3,7 @@
 import React, { createContext, useContext } from 'react';
 import { db } from './firebase';
 import {
-  collection, addDoc, query, where, getDocs, onSnapshot,
+  collection, addDoc, query, where, getDocs, onSnapshot, doc, updateDoc, deleteDoc,
 } from 'firebase/firestore';
 import { useAuth } from './auth-context';
 
@@ -21,6 +21,8 @@ interface ReviewsContextType {
   getReviews: (productId: string) => Promise<Review[]>;
   subscribeReviews: (productId: string, cb: (reviews: Review[]) => void) => () => void;
   submitReview: (productId: string, rating: number, comment: string) => Promise<void>;
+  editReview: (reviewId: string, rating: number, comment: string) => Promise<void>;
+  deleteReview: (reviewId: string) => Promise<void>;
   hasReviewed: (productId: string) => Promise<boolean>;
 }
 
@@ -72,8 +74,20 @@ export function ReviewsProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const editReview = async (reviewId: string, rating: number, comment: string) => {
+    if (!user) throw new Error('Must be logged in');
+    await updateDoc(doc(db, 'reviews', reviewId), {
+      rating, comment: comment.trim(), updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const deleteReview = async (reviewId: string) => {
+    if (!user) throw new Error('Must be logged in');
+    await deleteDoc(doc(db, 'reviews', reviewId));
+  };
+
   return (
-    <ReviewsContext.Provider value={{ getReviews, subscribeReviews, submitReview, hasReviewed }}>
+    <ReviewsContext.Provider value={{ getReviews, subscribeReviews, submitReview, editReview, deleteReview, hasReviewed }}>
       {children}
     </ReviewsContext.Provider>
   );

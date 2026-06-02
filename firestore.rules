@@ -53,10 +53,11 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
-    // Reviews — public read, authenticated write
+    // Reviews — public read, authenticated write, owner can edit/delete
     match /reviews/{reviewId} {
       allow read: if true;
       allow create: if isAuth();
+      allow update, delete: if isAuth() && request.auth.uid == resource.data.userId;
     }
 
     // Returns
