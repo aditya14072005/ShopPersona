@@ -6,7 +6,7 @@ import { Navbar } from '@/components/Navbar';
 import { useAuth } from '@/lib/auth-context';
 import { db } from '@/lib/firebase';
 import {
-  collection, query, where, onSnapshot, addDoc, updateDoc, doc, orderBy,
+  collection, query, where, onSnapshot, addDoc, updateDoc, doc,
 } from 'firebase/firestore';
 import {
   RefreshCw, Package, CheckCircle, Clock, XCircle, Truck, MessageSquare,
@@ -249,12 +249,16 @@ export default function ReturnsPage() {
     return unsub;
   }, [user]);
 
-  // Live returns
+  // Live returns — no orderBy to avoid requiring a composite Firestore index
   useEffect(() => {
     if (!user) return;
     const unsub = onSnapshot(
-      query(collection(db, 'returns'), where('userId', '==', user.uid), orderBy('createdAt', 'desc')),
-      (snap) => setReturns(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ReturnRequest))),
+      query(collection(db, 'returns'), where('userId', '==', user.uid)),
+      (snap) => setReturns(
+        snap.docs
+          .map((d) => ({ id: d.id, ...d.data() } as ReturnRequest))
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+      ),
     );
     return unsub;
   }, [user]);
