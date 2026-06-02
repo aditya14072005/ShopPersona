@@ -37,6 +37,9 @@ export default function ProductDetailPage() {
   const [reviewError, setReviewError] = useState('');
   const [alreadyReviewed, setAlreadyReviewed] = useState(false);
 
+  const [hoverRating, setHoverRating] = useState(0);
+  const [showAllReviews, setShowAllReviews] = useState(false);
+
   useEffect(() => {
     if (!product) return;
     trackView(product.id);
@@ -225,27 +228,87 @@ export default function ProductDetailPage() {
         {/* Reviews */}
         <section className="mb-16">
           <h2 className="text-2xl font-bold text-foreground mb-6">Customer Reviews</h2>
+
+          {/* Rating summary */}
+          <div className="bg-card border border-border rounded-xl p-6 mb-6">
+            <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
+              {/* Big avg number */}
+              <div className="text-center flex-shrink-0">
+                <p className="text-6xl font-extrabold text-foreground">{avgRating}</p>
+                <div className="flex justify-center gap-0.5 my-1">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star key={i} className={`w-4 h-4 ${
+                      i < Math.round(Number(avgRating)) ? 'fill-accent text-accent' : 'text-muted-foreground'
+                    }`} />
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</p>
+              </div>
+
+              {/* Bar breakdown */}
+              <div className="flex-1 w-full space-y-1.5">
+                {[5, 4, 3, 2, 1].map((star) => {
+                  const count = reviews.filter((r) => r.rating === star).length;
+                  const pct = reviews.length ? (count / reviews.length) * 100 : 0;
+                  return (
+                    <div key={star} className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-4 text-right">{star}</span>
+                      <Star className="w-3 h-3 fill-accent text-accent flex-shrink-0" />
+                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs text-muted-foreground w-6">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* All reviews */}
             <div className="space-y-4">
               {reviews.length === 0 ? (
                 <p className="text-muted-foreground">No reviews yet. Be the first!</p>
-              ) : reviews.map((review) => (
-                <div key={review.id} className="bg-card border border-border rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold text-foreground">{review.userName}</span>
-                    <div className="flex gap-0.5">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star key={i} className={`w-4 h-4 ${i < review.rating ? 'fill-accent text-accent' : 'text-muted-foreground'}`} />
-                      ))}
+              ) : (
+                <>
+                  {(showAllReviews ? reviews : reviews.slice(0, 4)).map((review) => (
+                    <div key={review.id} className="bg-card border border-border rounded-xl p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary flex-shrink-0">
+                            {review.userName.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{review.userName}</p>
+                            <p className="text-xs text-muted-foreground">{new Date(review.createdAt).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-0.5">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star key={i} className={`w-4 h-4 ${
+                              i < review.rating ? 'fill-accent text-accent' : 'text-muted-foreground'
+                            }`} />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{review.comment}</p>
                     </div>
-                  </div>
-                  <p className="text-muted-foreground text-sm">{review.comment}</p>
-                  <p className="text-xs text-muted-foreground mt-2">{new Date(review.createdAt).toLocaleDateString()}</p>
-                </div>
-              ))}
+                  ))}
+                  {reviews.length > 4 && (
+                    <button
+                      onClick={() => setShowAllReviews(!showAllReviews)}
+                      className="text-sm text-primary hover:underline font-medium"
+                    >
+                      {showAllReviews ? 'Show less' : `Show all ${reviews.length} reviews`}
+                    </button>
+                  )}
+                </>
+              )}
             </div>
 
-            <div className="bg-card border border-border rounded-xl p-6">
+            {/* Write a review */}
+            <div className="bg-card border border-border rounded-xl p-6 h-fit">
               <h3 className="text-lg font-bold text-foreground mb-4">Write a Review</h3>
               {!user ? (
                 <p className="text-muted-foreground text-sm"><a href="/login" className="text-primary hover:underline">Log in</a> to leave a review.</p>
@@ -259,11 +322,22 @@ export default function ProductDetailPage() {
                     <label className="block text-sm font-semibold text-foreground mb-2">Rating</label>
                     <div className="flex gap-1">
                       {Array.from({ length: 5 }).map((_, i) => (
-                        <button key={i} type="button" onClick={() => setReviewRating(i + 1)}>
-                          <Star className={`w-6 h-6 ${i < reviewRating ? 'fill-accent text-accent' : 'text-muted-foreground'}`} />
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setReviewRating(i + 1)}
+                          onMouseEnter={() => setHoverRating(i + 1)}
+                          onMouseLeave={() => setHoverRating(0)}
+                        >
+                          <Star className={`w-7 h-7 transition-colors ${
+                            i < (hoverRating || reviewRating) ? 'fill-accent text-accent' : 'text-muted-foreground'
+                          }`} />
                         </button>
                       ))}
                     </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'][hoverRating || reviewRating]}
+                    </p>
                   </div>
                   <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} required rows={4}
                     placeholder="Share your experience..."
