@@ -75,6 +75,12 @@ service cloud.firestore {
       }
     }
 
+    // Daily deal override — public read, admin write
+    match /daily_deal/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Product presence (real-time viewers)
     match /product_presence/{productId} {
       allow read, write: if isAuth();

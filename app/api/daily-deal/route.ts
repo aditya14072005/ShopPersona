@@ -1,30 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PRODUCTS } from '@/lib/products';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+
+function getAdminDb() {
+  if (!getApps().length) {
+    initializeApp({
+      credential: cert({
+        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      }),
+    });
+  }
+  return getFirestore();
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const topCategory = searchParams.get('category');
+  const now = new Date();
 
-  // Pick from user's top category, or random if none
-  const pool = topCategory
-    ? PRODUCTS.filter((p) => p.category === topCategory)
-    : PRODUCTS;
+  // Check for admin override in Firestore
+  try {
+    const db = getAdminDb();
+    const snap = await db.collection('daily_deal').doc('active').get();
+    if (snap.exists) {
+      const data = snap.data()!;
+      const expiresAt = new Date(data.expiresAt);
+      if (expiresAt > now) {
+        const product = PRODUCTS.find((p) => p.id === data.productId);
+        if (product) {
+          const discountPercent = data.discountPercent ?? 20;
+          return NextResponse.json({
+            product,
+            discountPercent,
+            discountedPrice: +(product.price * (1 - discountPercent / 100)).toFixed(2),
+            secondsLeft: Math.floor((expiresAt.getTime() - now.getTime()) / 1000),
+          });
+        }
+      }
+    }
+  } catch (_) { /* fall through to auto logic */ }
 
-  // Use date as seed so deal changes daily but is consistent within the day
-  const today = new Date();
-  const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
-  const index = seed % pool.length;
-  const product = pool[index];
-
-  // Midnight reset — seconds until next day
-  const tomorrow = new Date(today);
+  // Auto logic (date-seeded)
+  const pool = topCategory ? PRODUCTS.filter((p) => p.category === topCategory) : PRODUCTS;
+  const seed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+  const product = pool[seed % pool.length];
+  const tomorrow = new Date(now);
   tomorrow.setHours(24, 0, 0, 0);
-  const secondsLeft = Math.floor((tomorrow.getTime() - today.getTime()) / 1000);
 
   return NextResponse.json({
     product,
     discountPercent: 20,
     discountedPrice: +(product.price * 0.8).toFixed(2),
-    secondsLeft,
+    secondsLeft: Math.floor((tomorrow.getTime() - now.getTime()) / 1000),
   });
 }

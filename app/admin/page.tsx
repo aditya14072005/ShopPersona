@@ -16,7 +16,7 @@ import {
 import {
   Users, ShoppingCart, TrendingUp, LayoutDashboard, Package, RefreshCw,
   CreditCard, ChevronDown, ChevronUp, Search, Plus, Pencil, Trash2, X,
-  BarChart2, Warehouse, MessageSquare, CalendarDays,
+  BarChart2, Warehouse, MessageSquare, CalendarDays, Tag,
 } from 'lucide-react';
 import { useRef } from 'react';
 import { PRODUCTS as STATIC_PRODUCTS } from '@/lib/products';
@@ -82,6 +82,7 @@ const TABS = [
   { key: 'users',      label: 'Users',      icon: Users },
   { key: 'products',   label: 'Products',   icon: Package },
   { key: 'inventory',  label: 'Inventory',  icon: Warehouse },
+  { key: 'daily-deal', label: 'Daily Deal',  icon: Tag },
 ] as const;
 
 type Tab = typeof TABS[number]['key'];
@@ -1695,6 +1696,114 @@ function InventoryTab() {
   );
 }
 
+// ─── Daily Deal Tab ─────────────────────────────────────────────────────────
+function DailyDealTab() {
+  const [productId, setProductId] = useState('');
+  const [discountPercent, setDiscountPercent] = useState('20');
+  const [hours, setHours] = useState('24');
+  const [saving, setSaving] = useState(false);
+  const [current, setCurrent] = useState<{ productId: string; discountPercent: number; expiresAt: string } | null>(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'daily_deal', 'active'), (snap) => {
+      setCurrent(snap.exists() ? (snap.data() as typeof current) : null);
+    });
+    return unsub;
+  }, []);
+
+  const activate = async () => {
+    if (!productId) return;
+    setSaving(true);
+    const expiresAt = new Date(Date.now() + Number(hours) * 3600_000).toISOString();
+    await setDoc(doc(db, 'daily_deal', 'active'), {
+      productId, discountPercent: Number(discountPercent), expiresAt,
+    });
+    setSaving(false);
+    setProductId('');
+  };
+
+  const clear = async () => {
+    await deleteDoc(doc(db, 'daily_deal', 'active'));
+  };
+
+  const currentProduct = current ? STATIC_PRODUCTS.find((p) => p.id === current.productId) : null;
+  const isExpired = current ? new Date(current.expiresAt) <= new Date() : false;
+
+  return (
+    <div className="space-y-6 max-w-xl">
+      {/* Active deal */}
+      <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+        <h2 className="text-sm font-bold text-foreground">Current Deal</h2>
+        {current && !isExpired && currentProduct ? (
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <img src={currentProduct.image} alt={currentProduct.name} className="w-12 h-12 rounded-lg object-cover" />
+              <div>
+                <p className="text-sm font-semibold text-foreground">{currentProduct.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {current.discountPercent}% off · expires {new Date(current.expiresAt).toLocaleString()}
+                </p>
+              </div>
+            </div>
+            <button onClick={clear}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors">
+              Clear
+            </button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {isExpired ? 'Last deal has expired.' : 'No active deal — auto-logic is running.'}
+          </p>
+        )}
+      </div>
+
+      {/* Set new deal */}
+      <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+        <h2 className="text-sm font-bold text-foreground">Set Today's Deal</h2>
+
+        <div>
+          <label className="text-xs text-muted-foreground">Product</label>
+          <select value={productId} onChange={(e) => setProductId(e.target.value)}
+            className="mt-1 w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
+            <option value="">— select a product —</option>
+            {STATIC_PRODUCTS.map((p) => (
+              <option key={p.id} value={p.id}>{p.name} (${p.price})</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs text-muted-foreground">Discount %</label>
+            <input type="number" min="1" max="90" value={discountPercent}
+              onChange={(e) => setDiscountPercent(e.target.value)}
+              className="mt-1 w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Duration (hours)</label>
+            <input type="number" min="1" max="72" value={hours}
+              onChange={(e) => setHours(e.target.value)}
+              className="mt-1 w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+          </div>
+        </div>
+
+        {productId && (
+          <div className="px-3 py-2 bg-primary/10 rounded-lg text-xs text-primary">
+            Preview: {STATIC_PRODUCTS.find((p) => p.id === productId)?.name} at{' '}
+            <strong>${(Number(STATIC_PRODUCTS.find((p) => p.id === productId)?.price ?? 0) * (1 - Number(discountPercent) / 100)).toFixed(2)}</strong>{' '}
+            ({discountPercent}% off) for {hours}h
+          </div>
+        )}
+
+        <button onClick={activate} disabled={saving || !productId}
+          className="w-full py-2 text-sm font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors">
+          {saving ? 'Activating…' : 'Activate Deal'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const { userProfile, loading } = useAuth();
@@ -1837,6 +1946,7 @@ export default function AdminDashboard() {
         {tab === 'users'      && <UsersTab users={users} />}
         {tab === 'products'   && <ProductsTab orders={orders} />}
         {tab === 'inventory'  && <InventoryTab />}
+        {tab === 'daily-deal' && <DailyDealTab />}
       </div>
     </div>
   );
