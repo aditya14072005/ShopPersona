@@ -78,12 +78,19 @@ export function AIAssistant() {
                     <Bot className="w-3.5 h-3.5 text-primary" />
                   </div>
                 )}
-                <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm ${
+                <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap ${
                   msg.role === 'user'
                     ? 'bg-primary text-primary-foreground rounded-tr-sm'
                     : 'bg-muted text-foreground rounded-tl-sm'
-                }`}>
-                  {msg.content}
+                }`}
+                  dangerouslySetInnerHTML={msg.role === 'assistant' ? {
+                    __html: msg.content
+                      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                  } : undefined}
+                >
+                  {msg.role === 'user' ? msg.content : null}
                 </div>
                 {msg.role === 'user' && (
                   <div className="w-6 h-6 bg-accent/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">

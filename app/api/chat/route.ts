@@ -1,42 +1,81 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { PRODUCTS } from '@/lib/products';
 
-let openai: OpenAI | null = null;
+// ── keyword → category / intent maps ────────────────────────────────────────
+const CATEGORY_KEYWORDS: Record<string, string> = {
+  electronics: 'Electronics', phone: 'Electronics', laptop: 'Electronics',
+  headphone: 'Electronics', speaker: 'Electronics', tech: 'Electronics', gadget: 'Electronics',
+  fashion: 'Fashion', cloth: 'Fashion', wear: 'Fashion', watch: 'Fashion',
+  sunglass: 'Fashion', bag: 'Fashion', backpack: 'Fashion', outfit: 'Fashion', style: 'Fashion',
+  home: 'Home', decor: 'Home', vase: 'Home', furniture: 'Home', kitchen: 'Home', room: 'Home',
+  book: 'Books', novel: 'Books', read: 'Books', fiction: 'Books', literature: 'Books',
+  sport: 'Sports', gym: 'Sports', fitness: 'Sports', yoga: 'Sports', exercise: 'Sports', workout: 'Sports',
+};
 
-// Initialize OpenAI only if API key exists
-if (process.env.OPENAI_API_KEY) {
-  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const GREETING = /^(hi|hello|hey|howdy|sup|what'?s up|good (morning|evening|afternoon))/i;
+const THANKS   = /thank|thanks|thx|ty|great|awesome|perfect|helpful/i;
+const CHEAP    = /cheap|budget|affordable|low.?price|inexpensive|under (\$?\d+)/i;
+const EXPENSIVE = /premium|luxury|best|top|high.?end|expensive/i;
+const GIFT     = /gift|present|someone|friend|birthday|anniversary/i;
+const ALL      = /all|everything|catalogue|catalog|list|show|what do you (have|sell|carry)/i;
+const HELP     = /help|what can you|what do you do|how (do|can) (you|i)|support/i;
+
+function matchProducts(text: string) {
+  const lower = text.toLowerCase();
+
+  // Direct product name match
+  const byName = PRODUCTS.filter((p) => lower.includes(p.name.toLowerCase().split(' ')[0].toLowerCase()));
+  if (byName.length) return byName;
+
+  // Category keyword match
+  const matchedCat = Object.entries(CATEGORY_KEYWORDS).find(([kw]) => lower.includes(kw))?.[1];
+  if (matchedCat) return PRODUCTS.filter((p) => p.category === matchedCat);
+
+  // Price intent
+  if (CHEAP.test(lower)) return [...PRODUCTS].sort((a, b) => a.price - b.price).slice(0, 3);
+  if (EXPENSIVE.test(lower)) return [...PRODUCTS].sort((a, b) => b.price - a.price).slice(0, 3);
+
+  // Gift → top rated
+  if (GIFT.test(lower)) return [...PRODUCTS].sort((a, b) => b.rating - a.rating).slice(0, 3);
+
+  return [];
 }
 
-const SYSTEM_PROMPT = `You are a helpful shopping assistant for ShopPersona, an AI-powered e-commerce store.
-You help customers find products from our catalogue. Be friendly, concise, and always recommend specific products by name when relevant.
+function formatProducts(products: typeof PRODUCTS) {
+  return products.map((p) => `• **${p.name}** — $${p.price} (${p.category}) ⭐ ${p.rating}\n  ${p.description}`).join('\n\n');
+}
 
-Our current product catalogue:
-${PRODUCTS.map((p) => `- ${p.name} ($${p.price}, ${p.category}): ${p.description}`).join('\n')}
+function buildReply(userText: string): string {
+  const t = userText.trim();
 
-Only recommend products from this catalogue. If asked about something we don't carry, say so politely and suggest the closest match.`;
+  if (GREETING.test(t))
+    return "Hi there! 👋 I'm your ShopPersona assistant. Tell me what you're looking for — a category like *Electronics* or *Fashion*, a budget, a gift idea — and I'll find the best match!";
+
+  if (THANKS.test(t))
+    return "You're welcome! 😊 Let me know if you need anything else.";
+
+  if (HELP.test(t))
+    return "I can help you:\n• Find products by category (Electronics, Fashion, Home, Books, Sports)\n• Filter by budget — try *cheap* or *premium*\n• Find gift ideas\n• Search by name\n\nJust tell me what you're looking for!";
+
+  if (ALL.test(t)) {
+    return `Here's everything we carry:\n\n${formatProducts(PRODUCTS)}`;
+  }
+
+  const matches = matchProducts(t);
+
+  if (matches.length === 0)
+    return "Hmm, I couldn't find a match for that. 🤔 Try searching by category (*Electronics*, *Fashion*, *Home*, *Books*, *Sports*), or describe what you need and I'll do my best!";
+
+  const intro = matches.length === 1
+    ? `Here's the perfect pick for you! 🎯`
+    : `I found ${matches.length} great option${matches.length > 1 ? 's' : ''} for you! 🛍️`;
+
+  return `${intro}\n\n${formatProducts(matches)}`;
+}
 
 export async function POST(req: NextRequest) {
-  try {
-    if (!openai) {
-      return NextResponse.json(
-        { error: 'AI assistant is not configured. Please set OPENAI_API_KEY.' },
-        { status: 503 },
-      );
-    }
-
-    const { messages } = await req.json();
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages],
-      max_tokens: 300,
-    });
-
-    return NextResponse.json({ reply: completion.choices[0].message.content });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'AI assistant error';
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  const { messages } = await req.json();
+  const lastUser = [...messages].reverse().find((m: { role: string }) => m.role === 'user');
+  const reply = buildReply(lastUser?.content ?? '');
+  return NextResponse.json({ reply });
 }
