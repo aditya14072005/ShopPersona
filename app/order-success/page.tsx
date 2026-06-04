@@ -4,10 +4,9 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Navbar } from '@/components/Navbar';
-import { CheckCircle, Package, MapPin, Mail, Loader2 } from 'lucide-react';
 import { Suspense } from 'react';
-import { db } from '@/lib/firebase';
-import { addDoc, collection } from 'firebase/firestore';
+import { CheckCircle, Package, MapPin, Mail, Loader2 } from 'lucide-react';
+
 
 interface SessionData {
   customerEmail: string;
@@ -35,20 +34,18 @@ function OrderSuccessContent() {
   useEffect(() => {
     if (!sessionId) { setLoading(false); return; }
 
-    // Write the full order to Firestore using pending data saved before Stripe redirect
     const pending = localStorage.getItem('pending_order');
+    let pendingOrder: object | null = null;
     if (pending) {
-      try {
-        const order = JSON.parse(pending);
-        addDoc(collection(db, 'orders'), {
-          ...order,
-          stripeSessionId: sessionId,
-          paymentMethod: 'stripe',
-          status: 'confirmed',
-          createdAt: new Date().toISOString(),
-        }).then(() => localStorage.removeItem('pending_order'));
-      } catch {}
+      try { pendingOrder = JSON.parse(pending); } catch {}
     }
+
+    // Write order server-side via Admin SDK — no client auth needed
+    fetch('/api/confirm-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, pendingOrder }),
+    }).then(() => localStorage.removeItem('pending_order')).catch(() => {});
 
     fetch(`/api/order-session?session_id=${sessionId}`)
       .then((r) => r.json())

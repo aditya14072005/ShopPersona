@@ -116,7 +116,6 @@ export default function CheckoutPage() {
         total: total + 10 + total * 0.08,
         shipping: formData,
       }));
-      await clearCart();
       window.location.href = data.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Checkout failed. Please try again.');
