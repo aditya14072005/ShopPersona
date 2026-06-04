@@ -31,7 +31,9 @@ if (
     // Initialize Firebase services
     auth = getAuth(app);
     // Explicitly persist auth across full-page navigations (e.g. Stripe redirect)
-    setPersistence(auth, browserLocalStoragePersistence).catch(() => {});
+    if (typeof window !== 'undefined') {
+      setPersistence(auth, browserLocalStoragePersistence).catch(() => {});
+    }
     db = getFirestore(app);
     storage = getStorage(app);
   } catch (err) {
