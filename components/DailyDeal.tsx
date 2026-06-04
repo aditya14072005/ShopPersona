@@ -2,34 +2,44 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRecommendations } from '@/lib/recommendations-context';
-import { PRODUCTS, type Product } from '@/lib/products';
+import { db } from '@/lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { PRODUCTS } from '@/lib/products';
 import { Tag, Clock } from 'lucide-react';
 
 interface DealData {
-  product: Product;
+  productId: string;
   discountPercent: number;
-  discountedPrice: number;
-  secondsLeft: number;
+  expiresAt: string;
 }
 
 export function DailyDeal() {
-  const { recommendations } = useRecommendations();
   const [deal, setDeal] = useState<DealData | null>(null);
   const [timeLeft, setTimeLeft] = useState(0);
 
+  // Live Firestore listener — updates instantly when admin changes the deal
   useEffect(() => {
-    // Determine top category from recommendations
-    const topCategory = recommendations[0]?.category ?? null;
-    const url = topCategory ? `/api/daily-deal?category=${encodeURIComponent(topCategory)}` : '/api/daily-deal';
-
-    fetch(url)
-      .then((r) => r.json())
-      .then((data: DealData) => {
-        setDeal(data);
-        setTimeLeft(data.secondsLeft);
-      });
-  }, [recommendations]);
+    const unsub = onSnapshot(doc(db, 'daily_deal', 'active'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as DealData;
+        const secondsLeft = Math.floor((new Date(data.expiresAt).getTime() - Date.now()) / 1000);
+        if (secondsLeft > 0) {
+          setDeal(data);
+          setTimeLeft(secondsLeft);
+          return;
+        }
+      }
+      // No active admin deal — fall back to auto/date-seeded deal
+      const now = new Date();
+      const seed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+      const product = PRODUCTS[seed % PRODUCTS.length];
+      const tomorrow = new Date(now);
+      tomorrow.setHours(24, 0, 0, 0);
+      setDeal({ productId: product.id, discountPercent: 20, expiresAt: tomorrow.toISOString() });
+      setTimeLeft(Math.floor((tomorrow.getTime() - now.getTime()) / 1000));
+    });
+    return unsub;
+  }, []);
 
   // Countdown tick
   useEffect(() => {
@@ -40,6 +50,10 @@ export function DailyDeal() {
 
   if (!deal) return null;
 
+  const product = PRODUCTS.find((p) => p.id === deal.productId);
+  if (!product) return null;
+
+  const discountedPrice = +(product.price * (1 - deal.discountPercent / 100)).toFixed(2);
   const hours = Math.floor(timeLeft / 3600);
   const minutes = Math.floor((timeLeft % 3600) / 60);
   const seconds = timeLeft % 60;
@@ -54,9 +68,9 @@ export function DailyDeal() {
           </div>
           <div>
             <span className="font-bold text-sm">⚡ Daily Deal — {deal.discountPercent}% OFF: </span>
-            <span className="text-sm">{deal.product.name}</span>
-            <span className="ml-2 line-through opacity-70 text-sm">${deal.product.price}</span>
-            <span className="ml-1 font-bold text-sm">${deal.discountedPrice}</span>
+            <span className="text-sm">{product.name}</span>
+            <span className="ml-2 line-through opacity-70 text-sm">${product.price}</span>
+            <span className="ml-1 font-bold text-sm">${discountedPrice}</span>
           </div>
         </div>
 
@@ -70,7 +84,7 @@ export function DailyDeal() {
             <span className="bg-primary-foreground/20 px-2 py-0.5 rounded font-bold">{pad(seconds)}</span>
           </div>
           <Link
-            href={`/product/${deal.product.id}`}
+            href={`/product/${product.id}`}
             className="bg-primary-foreground text-primary text-xs font-bold px-4 py-1.5 rounded-lg hover:bg-primary-foreground/90 transition-colors whitespace-nowrap"
           >
             Grab Deal
