@@ -42,7 +42,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Listen for auth state changes
   useEffect(() => {
     if (!auth) {
       setLoading(false);
@@ -50,21 +49,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // onAuthStateChanged fires once with null while Firebase rehydrates from
+    // IndexedDB, then again with the real user. We must not act on the first
+    // null — keep loading=true until Firebase fully resolves.
+    let resolved = false;
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         setError(null);
 
         if (firebaseUser) {
           setUser(firebaseUser);
-          
-          // Fetch user profile from Firestore
           const userDocRef = doc(db, 'users', firebaseUser.uid);
           const userDocSnap = await getDoc(userDocRef);
-
           if (userDocSnap.exists()) {
             setUserProfile(userDocSnap.data() as UserProfile);
           } else {
-            // Create default profile if it doesn't exist
             const defaultProfile: UserProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email || '',
@@ -83,11 +83,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Auth state change error:', err);
         setError(err instanceof Error ? err.message : 'Failed to load user profile');
       } finally {
+        resolved = true;
         setLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    // Safety timeout — if Firebase never fires (e.g. offline), unblock UI after 5s
+    const timeout = setTimeout(() => {
+      if (!resolved) setLoading(false);
+    }, 5000);
+
+    return () => { unsubscribe(); clearTimeout(timeout); };
   }, []);
 
   const signup = async (email: string, password: string, name: string) => {
