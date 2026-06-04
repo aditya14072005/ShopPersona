@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = pendingOrder?.userId || session.metadata?.userId;
-    const items = pendingOrder?.items || [];
+    const items = pendingOrder?.items || JSON.parse(session.metadata?.items || '[]');
     const shipping = pendingOrder?.shipping || JSON.parse(session.metadata?.shipping || '{}');
     const total = pendingOrder?.total ?? session.amount_total! / 100;
 
