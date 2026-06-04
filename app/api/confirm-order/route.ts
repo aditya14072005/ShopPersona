@@ -5,11 +5,14 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 function getAdminDb() {
   if (!getApps().length) {
+    const rawKey = process.env.FIREBASE_PRIVATE_KEY ?? '';
+    // Vercel stores the value without extra escaping; handle both formats
+    const privateKey = rawKey.includes('\\n') ? rawKey.replace(/\\n/g, '\n') : rawKey;
     initializeApp({
       credential: cert({
         projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        privateKey,
       }),
     });
   }
@@ -29,7 +32,10 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = pendingOrder?.userId || session.metadata?.userId;
-    const items = pendingOrder?.items || JSON.parse(session.metadata?.items || '[]');
+    let items = pendingOrder?.items || [];
+    if (!items.length && session.metadata?.items) {
+      try { items = JSON.parse(session.metadata.items); } catch {}
+    }
     const shipping = pendingOrder?.shipping || JSON.parse(session.metadata?.shipping || '{}');
     const total = pendingOrder?.total ?? session.amount_total! / 100;
 

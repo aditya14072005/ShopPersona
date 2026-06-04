@@ -56,7 +56,15 @@ export async function POST(req: NextRequest) {
       shipping_address_collection: {
         allowed_countries: ['IN', 'US', 'GB', 'CA', 'AU', 'AE', 'SG', 'DE', 'FR', 'JP', 'NZ', 'ZA'],
       },
-      metadata: { userId, shipping: JSON.stringify(shipping), items: JSON.stringify(items), total: String(items.reduce((s: number, i: { price: number; quantity: number }) => s + i.price * i.quantity, 0)) },
+      metadata: {
+        userId,
+        shipping: JSON.stringify(shipping),
+        // Strip images to stay within Stripe's 500-char metadata limit
+        items: JSON.stringify(items.map((i: { name: string; price: number; quantity: number; productId: string }) => ({
+          name: i.name, price: i.price, quantity: i.quantity, productId: i.productId,
+        }))),
+        total: String(items.reduce((s: number, i: { price: number; quantity: number }) => s + i.price * i.quantity, 0)),
+      },
     });
 
     return NextResponse.json({ url: session.url });
