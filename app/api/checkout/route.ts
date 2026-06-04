@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-function getAppUrl(): string {
-  // NEXT_PUBLIC_APP_URL takes priority (set this in Vercel to your production domain)
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
-  // Vercel automatically sets VERCEL_URL (without https://)
+function getAppUrl(req: NextRequest): string {
+  // 1. Explicit override (e.g. production domain set in Vercel env vars)
+  if (process.env.NEXT_PUBLIC_APP_URL && !process.env.NEXT_PUBLIC_APP_URL.includes('localhost'))
+    return process.env.NEXT_PUBLIC_APP_URL;
+  // 2. Vercel deployment URL (automatic, no https prefix)
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  // 3. Derive from the incoming request origin — works for any host
+  const origin = req.headers.get('origin') || req.headers.get('referer');
+  if (origin) return new URL(origin).origin;
   return 'http://localhost:3000';
 }
 
@@ -29,7 +33,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'User not authenticated.' }, { status: 401 });
     }
 
-    const appUrl = getAppUrl();
+    const appUrl = getAppUrl(req);
 
     const lineItems = items.map((item: { name: string; price: number; quantity: number; image: string }) => ({
       price_data: {
