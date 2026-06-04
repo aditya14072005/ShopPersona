@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, setPersistence, browserLocalStoragePersistence } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -32,7 +32,9 @@ if (
     auth = getAuth(app);
     // Explicitly persist auth across full-page navigations (e.g. Stripe redirect)
     if (typeof window !== 'undefined') {
-      setPersistence(auth, browserLocalStoragePersistence).catch(() => {});
+      import('firebase/auth').then(({ setPersistence, browserLocalStoragePersistence }) => {
+        setPersistence(auth, browserLocalStoragePersistence).catch(() => {});
+      });
     }
     db = getFirestore(app);
     storage = getStorage(app);
