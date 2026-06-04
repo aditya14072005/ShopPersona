@@ -17,7 +17,7 @@ type PaymentMethod = 'stripe' | 'cod';
 
 export default function CheckoutPage() {
   const { items, total, clearCart } = useCart();
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, loading: authLoading } = useAuth();
   const { trackPurchase } = useRecommendations();
   const router = useRouter();
 
@@ -30,11 +30,12 @@ export default function CheckoutPage() {
   });
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) { router.push('/login'); return; }
     if (userProfile?.role === 'admin') { router.push('/admin'); return; }
     if (items.length === 0) { router.push('/cart'); return; }
     loadPreferences();
-  }, [user, userProfile, items]);
+  }, [user, userProfile, items, authLoading]);
 
   const loadPreferences = async () => {
     if (!user) return;

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Navbar } from '@/components/Navbar';
+import { useAuth } from '@/lib/auth-context';
+import { useCart } from '@/lib/cart-context';
 import { Suspense } from 'react';
 import { CheckCircle, Package, MapPin, Mail, Loader2 } from 'lucide-react';
 
@@ -30,6 +32,8 @@ function OrderSuccessContent() {
   const sessionId = searchParams.get('session_id');
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
+  const { clearCart } = useCart();
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
     if (!sessionId) { setLoading(false); return; }
@@ -53,6 +57,13 @@ function OrderSuccessContent() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [sessionId]);
+
+  // Clear cart only after auth has rehydrated so Firestore write has proper uid
+  useEffect(() => {
+    if (!authLoading && user && sessionId) {
+      clearCart();
+    }
+  }, [authLoading, user, sessionId]);
 
   return (
     <div className="min-h-screen bg-background">
