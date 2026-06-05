@@ -10,7 +10,6 @@ import { InventoryProvider } from '@/lib/inventory-context'
 import { ABTestingProvider } from '@/lib/ab-testing-context'
 import { AIAssistant } from '@/components/AIAssistant'
 import { DailyDeal } from '@/components/DailyDeal'
-import { AnimatedBackground } from '@/components/AnimatedBackground'
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
@@ -46,7 +45,6 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-background">
       <body className="font-sans antialiased bg-background text-foreground">
-        <AnimatedBackground />
         <AuthProvider>
           <CartProvider>
             <InventoryProvider>
