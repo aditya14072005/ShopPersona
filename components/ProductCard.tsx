@@ -71,11 +71,11 @@ export function ProductCard({ product }: ProductCardProps) {
 
           <div className="mt-auto pt-3 border-t border-border flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <span className="text-lg font-bold text-accent">${dynamicPrice}</span>
+              <span className="text-lg font-bold text-accent">₹{dynamicPrice.toLocaleString('en-IN')}</span>
               {priceChange === 'surge' && <TrendingUp className="w-3.5 h-3.5 text-red-500" title="High demand pricing" />}
               {priceChange === 'discount' && <TrendingDown className="w-3.5 h-3.5 text-green-500" title="Discount pricing" />}
               {dynamicPrice !== product.basePrice && (
-                <span className="text-xs text-muted-foreground line-through">${product.basePrice}</span>
+                <span className="text-xs text-muted-foreground line-through">₹{product.basePrice.toLocaleString('en-IN')}</span>
               )}
             </div>
             <button

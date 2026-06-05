@@ -19,7 +19,7 @@ import {
   BarChart2, Warehouse, MessageSquare, CalendarDays, Tag,
 } from 'lucide-react';
 import { useRef } from 'react';
-import { PRODUCTS as STATIC_PRODUCTS } from '@/lib/products';
+import { PRODUCTS as STATIC_PRODUCTS, subscribeProducts } from '@/lib/products';
 import type { Product } from '@/lib/products';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -148,7 +148,7 @@ function AnalyticsTab({ orders, returns, userCount }: { orders: Order[]; returns
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Avg Order Value', value: `$${avgOrderValue.toFixed(2)}`, color: 'text-primary' },
+          { label: 'Avg Order Value', value: `₹${avgOrderValue.toFixed(0)}`, color: 'text-primary' },
           { label: 'Return Rate',     value: `${returnRate.toFixed(1)}%`,     color: 'text-yellow-400' },
           { label: 'Delivery Rate',   value: `${deliveredRate.toFixed(1)}%`,  color: 'text-green-400' },
           { label: 'Total Customers', value: userCount,                        color: 'text-accent' },
@@ -172,8 +172,8 @@ function AnalyticsTab({ orders, returns, userCount }: { orders: Order[]; returns
               <YAxis yAxisId="right" orientation="right" stroke="#A0AEC0" />
               <Tooltip contentStyle={TOOLTIP_STYLE} />
               <Legend />
-              <Line yAxisId="left"  type="monotone" dataKey="revenue" stroke="#7C3AED" strokeWidth={2} dot={false} />
-              <Line yAxisId="right" type="monotone" dataKey="orders"  stroke="#10B981" strokeWidth={2} dot={false} />
+              <Line yAxisId="left"  type="monotone" dataKey="revenue" stroke="#7C3AED" strokeWidth={2} dot={false} name="Revenue (₹)" />
+              <Line yAxisId="right" type="monotone" dataKey="orders"  stroke="#10B981" strokeWidth={2} dot={false} name="Orders" />
             </LineChart>
           </ResponsiveContainer>
         )}
@@ -190,7 +190,7 @@ function AnalyticsTab({ orders, returns, userCount }: { orders: Order[]; returns
                 <XAxis dataKey="date" stroke="#A0AEC0" tick={{ fontSize: 10 }} />
                 <YAxis stroke="#A0AEC0" />
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
-                <Line type="monotone" dataKey="aov" stroke="#F59E0B" strokeWidth={2} dot={false} name="AOV ($)" />
+                <Line type="monotone" dataKey="aov" stroke="#F59E0B" strokeWidth={2} dot={false} name="AOV (₹)" />
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -238,7 +238,7 @@ function AnalyticsTab({ orders, returns, userCount }: { orders: Order[]; returns
                   <CartesianGrid strokeDasharray="3 3" stroke="#2D3748" />
                   <XAxis type="number" stroke="#A0AEC0" />
                   <YAxis type="category" dataKey="name" stroke="#A0AEC0" width={75} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`$${Number(v ?? 0).toFixed(0)}`, 'Revenue']} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`₹${Number(v ?? 0).toFixed(0)}`, 'Revenue']} />
                   <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>
                     {catData.map((c, i) => <Cell key={i} fill={c.color} />)}
                   </Bar>
@@ -310,7 +310,7 @@ function OverviewTab({ orders, returns, userCount, onNavigate }: {
 
   // Recent activity (last 5 orders + last 5 returns merged)
   const activity = [
-    ...orders.slice(0, 5).map((o) => ({ type: 'order', id: o.id, label: `New order $${o.total?.toFixed(2)}`, time: o.createdAt, color: 'bg-blue-500' })),
+    ...orders.slice(0, 5).map((o) => ({ type: 'order', id: o.id, label: `New order ₹${o.total?.toFixed(0)}`, time: o.createdAt, color: 'bg-blue-500' })),
     ...returns.slice(0, 5).map((r) => ({ type: 'return', id: r.id, label: `Return request: ${r.itemName}`, time: r.createdAt, color: 'bg-yellow-500' })),
   ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 8);
 
@@ -319,7 +319,7 @@ function OverviewTab({ orders, returns, userCount, onNavigate }: {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Total Revenue',   value: `$${totalRevenue.toFixed(0)}`, icon: TrendingUp,  color: 'bg-primary/20 text-primary' },
+          { label: 'Total Revenue',   value: `₹${totalRevenue.toFixed(0)}`, icon: TrendingUp,  color: 'bg-primary/20 text-primary' },
           { label: 'Total Orders',    value: orders.length,                  icon: ShoppingCart, color: 'bg-accent/20 text-accent' },
           { label: 'Total Users',     value: userCount,                      icon: Users,        color: 'bg-secondary/20 text-secondary' },
           { label: 'Pending Inbox',   value: totalInbox,                     icon: MessageSquare, color: totalInbox > 0 ? 'bg-red-500/20 text-red-400' : 'bg-muted text-muted-foreground',
@@ -431,7 +431,7 @@ function OverviewTab({ orders, returns, userCount, onNavigate }: {
                     <p className="text-xs text-muted-foreground">{product.sales} units</p>
                   </div>
                 </div>
-                <p className="text-sm font-bold text-accent">${product.revenue.toFixed(0)}</p>
+                <p className="text-sm font-bold text-accent">₹{product.revenue.toFixed(0)}</p>
               </div>
             ))}
           </div>
@@ -595,7 +595,7 @@ function OrdersTab({ orders }: { orders: Order[] }) {
                     {new Date(order.createdAt).toLocaleDateString()}
                   </p>
 
-                  <p className="text-sm font-bold text-accent">${order.total?.toFixed(2)}</p>
+                  <p className="text-sm font-bold text-accent">₹{order.total?.toFixed(0)}</p>
 
                   {/* Status selector */}
                   <div className="col-span-2 md:col-span-1">
@@ -657,7 +657,7 @@ function OrdersTab({ orders }: { orders: Order[] }) {
                             <p className="text-sm font-medium text-foreground">{item.name}</p>
                             <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
                           </div>
-                          <p className="text-sm font-semibold text-foreground">${(item.price * item.quantity).toFixed(2)}</p>
+                          <p className="text-sm font-semibold text-foreground">₹{(item.price * item.quantity).toFixed(0)}</p>
                         </div>
                       ))}
                     </div>
@@ -665,7 +665,7 @@ function OrdersTab({ orders }: { orders: Order[] }) {
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                       <div>
                         <p className="text-xs text-muted-foreground">Order Total</p>
-                        <p className="font-bold text-accent">${order.total?.toFixed(2)}</p>
+                        <p className="font-bold text-accent">₹{order.total?.toFixed(0)}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Placed On</p>
@@ -1109,10 +1109,10 @@ function PaymentsTab({ orders }: { orders: Order[] }) {
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Stripe Payments', value: stripeCount, sub: `$${stripeTotal.toFixed(2)} total`, color: 'bg-purple-500/20 text-purple-400' },
-          { label: 'Cash on Delivery', value: codCount,   sub: `$${codTotal.toFixed(2)} total`,   color: 'bg-yellow-500/20 text-yellow-400' },
-          { label: 'Total Collected',  value: orders.length, sub: `$${(stripeTotal + codTotal).toFixed(2)}`, color: 'bg-green-500/20 text-green-400' },
-          { label: 'Avg Order Value',  value: orders.length ? `$${((stripeTotal + codTotal) / orders.length).toFixed(2)}` : '—', sub: 'per order', color: 'bg-blue-500/20 text-blue-400' },
+          { label: 'Stripe Payments', value: stripeCount, sub: `₹${stripeTotal.toFixed(0)} total`, color: 'bg-purple-500/20 text-purple-400' },
+          { label: 'Cash on Delivery', value: codCount,   sub: `₹${codTotal.toFixed(0)} total`,   color: 'bg-yellow-500/20 text-yellow-400' },
+          { label: 'Total Collected',  value: orders.length, sub: `₹${(stripeTotal + codTotal).toFixed(0)}`, color: 'bg-green-500/20 text-green-400' },
+          { label: 'Avg Order Value',  value: orders.length ? `₹${((stripeTotal + codTotal) / orders.length).toFixed(0)}` : '—', sub: 'per order', color: 'bg-blue-500/20 text-blue-400' },
         ].map(({ label, value, sub, color }) => (
           <div key={label} className="bg-card border border-border rounded-lg p-4">
             <p className="text-xs text-muted-foreground mb-1">{label}</p>
@@ -1159,7 +1159,7 @@ function PaymentsTab({ orders }: { orders: Order[] }) {
                   {new Date(o.createdAt).toLocaleDateString()}
                 </p>
 
-                <p className="text-sm font-bold text-accent">${o.total?.toFixed(2)}</p>
+                <p className="text-sm font-bold text-accent">₹{o.total?.toFixed(0)}</p>
 
                 <p className="text-xs font-mono text-muted-foreground hidden md:block truncate">
                   {o.stripeSessionId ? o.stripeSessionId.slice(0, 20) + '…' : '—'}
@@ -1451,7 +1451,7 @@ function ProductsTab({ orders }: { orders: Order[] }) {
                     </div>
                   </div>
                   <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground w-fit hidden md:block">{p.category}</span>
-                  <p className="text-sm text-foreground hidden md:block">${p.price}</p>
+                  <p className="text-sm text-foreground hidden md:block">₹{p.price.toLocaleString('en-IN')}</p>
 
                   {/* Inline stock edit */}
                   <div className="hidden md:flex items-center gap-1">
@@ -1472,7 +1472,7 @@ function ProductsTab({ orders }: { orders: Order[] }) {
                   </div>
 
                   <p className="text-sm text-foreground">{stats.sales}</p>
-                  <p className="text-sm font-bold text-accent">${stats.revenue.toFixed(0)}</p>
+                  <p className="text-sm font-bold text-accent">₹{stats.revenue.toFixed(0)}</p>
 
                   {/* Actions */}
                   <div className="flex items-center gap-2">
@@ -1767,7 +1767,7 @@ function DailyDealTab() {
             className="mt-1 w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
             <option value="">— select a product —</option>
             {STATIC_PRODUCTS.map((p) => (
-              <option key={p.id} value={p.id}>{p.name} (${p.price})</option>
+              <option key={p.id} value={p.id}>{p.name} (₹{p.price.toLocaleString('en-IN')})</option>
             ))}
           </select>
         </div>
@@ -1790,7 +1790,7 @@ function DailyDealTab() {
         {productId && (
           <div className="px-3 py-2 bg-primary/10 rounded-lg text-xs text-primary">
             Preview: {STATIC_PRODUCTS.find((p) => p.id === productId)?.name} at{' '}
-            <strong>${(Number(STATIC_PRODUCTS.find((p) => p.id === productId)?.price ?? 0) * (1 - Number(discountPercent) / 100)).toFixed(2)}</strong>{' '}
+            <strong>₹{(Number(STATIC_PRODUCTS.find((p) => p.id === productId)?.price ?? 0) * (1 - Number(discountPercent) / 100)).toFixed(0)}</strong>{' '}
             ({discountPercent}% off) for {hours}h
           </div>
         )}

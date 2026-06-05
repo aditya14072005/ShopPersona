@@ -5,7 +5,8 @@ import { useParams } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 import { ProductCard } from '@/components/ProductCard';
 import { ProductPresence } from '@/components/ProductPresence';
-import { PRODUCTS } from '@/lib/products';
+import { subscribeProducts } from '@/lib/products';
+import type { Product } from '@/lib/products';
 import { useCart } from '@/lib/cart-context';
 import { useAuth } from '@/lib/auth-context';
 import { useRecommendations } from '@/lib/recommendations-context';
@@ -19,7 +20,14 @@ import Image from 'next/image';
 export default function ProductDetailPage() {
   const params = useParams();
   const id = params.id as string;
-  const product = PRODUCTS.find((p) => p.id === id);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    const unsub = subscribeProducts(setAllProducts);
+    return unsub;
+  }, []);
+
+  const product = allProducts.find((p) => p.id === id);
 
   const { addToCart } = useCart();
   const { user, userProfile } = useAuth();
@@ -78,7 +86,7 @@ export default function ProductDetailPage() {
     ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
     : product.rating.toFixed(1);
 
-  const relatedProducts = PRODUCTS.filter(
+  const relatedProducts = allProducts.filter(
     (p) => p.category === product.category && p.id !== product.id,
   ).slice(0, 4);
 
@@ -181,8 +189,8 @@ export default function ProductDetailPage() {
 
             {/* Price */}
             <div className="flex items-center gap-4">
-              <span className="text-4xl font-bold text-accent">${product.price}</span>
-              <span className="text-lg text-muted-foreground line-through">${(product.price * 1.2).toFixed(0)}</span>
+              <span className="text-4xl font-bold text-accent">₹{product.price.toLocaleString('en-IN')}</span>
+              <span className="text-lg text-muted-foreground line-through">₹{(product.mrp ?? Math.round(product.price * 1.2)).toLocaleString('en-IN')}</span>
               <span className="text-sm bg-accent/20 text-accent font-semibold px-3 py-1 rounded">
                 Save {Math.round(20)}%
               </span>
@@ -232,7 +240,7 @@ export default function ProductDetailPage() {
                 <span className="text-xl">🚚</span>
                 <div>
                   <p className="font-semibold text-foreground text-sm">Free Shipping</p>
-                  <p className="text-xs text-muted-foreground">On orders over $50</p>
+                  <p className="text-xs text-muted-foreground">On orders over ₹999</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">

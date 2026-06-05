@@ -7,7 +7,8 @@ import { CollaborativeRecs } from '@/components/CollaborativeRecs';
 import { useRecommendations } from '@/lib/recommendations-context';
 import { useAuth } from '@/lib/auth-context';
 import { useABTesting } from '@/lib/ab-testing-context';
-import { PRODUCTS } from '@/lib/products';
+import { subscribeProducts, PRODUCTS as FALLBACK_PRODUCTS } from '@/lib/products';
+import type { Product } from '@/lib/products';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Tag, Flame, Star, Zap } from 'lucide-react';
 
@@ -160,7 +161,7 @@ const BRANDS = [
 
 // ─── Mini stat strip ─────────────────────────────────────────────────────────
 const PERKS = [
-  { icon: Zap,  label: 'Free Shipping',   sub: 'On orders over $50' },
+  { icon: Zap,  label: 'Free Shipping',   sub: 'On orders over ₹999' },
   { icon: Star, label: 'Top Rated',        sub: '4.8★ avg across products' },
   { icon: Flame, label: 'Hot Deals Daily', sub: 'New offers every 24h' },
   { icon: Tag,  label: 'Best Price',       sub: 'Price-match guarantee' },
@@ -171,6 +172,12 @@ export default function Home() {
   const { user } = useAuth();
   const { variant } = useABTesting();
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [allProducts, setAllProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
+
+  useEffect(() => {
+    const unsub = subscribeProducts(setAllProducts);
+    return unsub;
+  }, []);
 
   const filteredRecs = activeCategory
     ? recommendations.filter((p) => p.category === activeCategory)
@@ -256,7 +263,7 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {(filteredRecs.length ? filteredRecs : PRODUCTS.slice(0, 4)).map((product) => (
+          {(filteredRecs.length ? filteredRecs : allProducts.slice(0, 4)).map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
         </div>
@@ -272,7 +279,7 @@ export default function Home() {
           <h2 className="text-xl font-bold text-foreground">Best Sellers</h2>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {PRODUCTS.sort((a, b) => b.rating - a.rating).slice(0, 4).map((p) => (
+          {[...allProducts].sort((a, b) => b.rating - a.rating).slice(0, 4).map((p) => (
             <Link key={p.id} href={`/product/${p.id}`}
               className="group bg-card border border-border rounded-xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all">
               <div className="relative">
@@ -284,7 +291,7 @@ export default function Home() {
               <div className="p-3">
                 <p className="text-sm font-semibold text-foreground truncate">{p.name}</p>
                 <div className="flex items-center justify-between mt-1">
-                  <p className="text-sm font-bold text-primary">${p.price}</p>
+                  <p className="text-sm font-bold text-primary">₹{p.price.toLocaleString('en-IN')}</p>
                   <span className="text-xs text-yellow-400">★ {p.rating}</span>
                 </div>
               </div>

@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { db } from './firebase';
 import { doc, getDoc, setDoc, arrayUnion } from 'firebase/firestore';
 import { useAuth } from './auth-context';
-import { PRODUCTS, type Product } from './products';
+import { PRODUCTS, subscribeProducts, type Product } from './products';
 
 interface RecommendationsContextType {
   recommendations: Product[];
@@ -17,12 +17,18 @@ const RecommendationsContext = createContext<RecommendationsContextType | undefi
 export function RecommendationsProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [recommendations, setRecommendations] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>(PRODUCTS);
+
+  useEffect(() => {
+    const unsub = subscribeProducts(setAllProducts);
+    return unsub;
+  }, []);
 
   useEffect(() => {
     if (user) loadAndCompute();
-    else setRecommendations(PRODUCTS.slice(0, 4));
+    else setRecommendations(allProducts.slice(0, 4));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, allProducts]);
 
   const getUserBehavior = async () => {
     if (!user) return { viewed: [] as string[], purchased: [] as string[] };
@@ -39,20 +45,18 @@ export function RecommendationsProvider({ children }: { children: React.ReactNod
   const computeRecommendations = (viewed: string[], purchased: string[]): Product[] => {
     const interacted = [...new Set([...viewed, ...purchased])];
 
-    if (interacted.length === 0) return PRODUCTS.slice(0, 4);
+    if (interacted.length === 0) return allProducts.slice(0, 4);
 
-    // Find categories the user has shown interest in
     const categoryScores: Record<string, number> = {};
     interacted.forEach((id) => {
-      const product = PRODUCTS.find((p) => p.id === id);
+      const product = allProducts.find((p) => p.id === id);
       if (product) {
         categoryScores[product.category] = (categoryScores[product.category] || 0) +
-          (purchased.includes(id) ? 3 : 1); // purchases weigh more
+          (purchased.includes(id) ? 3 : 1);
       }
     });
 
-    // Score all products not yet purchased
-    const scored = PRODUCTS
+    const scored = allProducts
       .filter((p) => !purchased.includes(p.id))
       .map((p) => ({
         product: p,

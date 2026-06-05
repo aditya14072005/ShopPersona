@@ -6,16 +6,24 @@ import { Navbar } from '@/components/Navbar';
 import { ProductCard } from '@/components/ProductCard';
 import { SemanticSearch } from '@/components/SemanticSearch';
 import { VisualSearch } from '@/components/VisualSearch';
-import { PRODUCTS, CATEGORIES } from '@/lib/products';
+import { subscribeProducts, CATEGORIES } from '@/lib/products';
+import type { Product } from '@/lib/products';
 import { X } from 'lucide-react';
+
+const MAX_PRICE = 150000;
 
 function SearchPageContent() {
   const searchParams = useSearchParams();
+  const [products, setProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [priceRange, setPriceRange] = useState([0, 500]);
+  const [priceRange, setPriceRange] = useState([0, MAX_PRICE]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Sync search term and category from URL params (e.g. from Navbar search)
+  useEffect(() => {
+    const unsub = subscribeProducts(setProducts);
+    return unsub;
+  }, []);
+
   useEffect(() => {
     const q = searchParams.get('q');
     const category = searchParams.get('category');
@@ -24,16 +32,15 @@ function SearchPageContent() {
   }, [searchParams]);
 
   const filteredProducts = useMemo(() => {
-    return PRODUCTS.filter((product) => {
+    return products.filter((product) => {
       const categoryMatch = selectedCategory === 'All' || product.category === selectedCategory;
       const priceMatch = product.price >= priceRange[0] && product.price <= priceRange[1];
       const searchMatch =
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.description.toLowerCase().includes(searchTerm.toLowerCase());
-
       return categoryMatch && priceMatch && searchMatch;
     });
-  }, [selectedCategory, priceRange, searchTerm]);
+  }, [products, selectedCategory, priceRange, searchTerm]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -59,9 +66,7 @@ function SearchPageContent() {
           <div className="space-y-6">
             {/* Search Input */}
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-3">
-                Search
-              </label>
+              <label className="block text-sm font-semibold text-foreground mb-3">Search</label>
               <input
                 type="text"
                 placeholder="Search products..."
@@ -73,9 +78,7 @@ function SearchPageContent() {
 
             {/* Category Filter */}
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-3">
-                Category
-              </label>
+              <label className="block text-sm font-semibold text-foreground mb-3">Category</label>
               <div className="space-y-2">
                 {CATEGORIES.map((category) => (
                   <button
@@ -95,37 +98,32 @@ function SearchPageContent() {
 
             {/* Price Range Filter */}
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-3">
-                Price Range
-              </label>
+              <label className="block text-sm font-semibold text-foreground mb-3">Price Range</label>
               <div className="space-y-3">
                 <input
                   type="range"
                   min="0"
-                  max="500"
+                  max={MAX_PRICE}
+                  step="500"
                   value={priceRange[1]}
                   onChange={(e) => setPriceRange([priceRange[0], parseInt(e.target.value)])}
                   className="w-full cursor-pointer"
                 />
-                <div className="flex gap-2">
-                  <span className="text-sm text-muted-foreground">
-                    ${priceRange[0]}
-                  </span>
-                  <span className="text-sm text-muted-foreground">-</span>
-                  <span className="text-sm text-muted-foreground">
-                    ${priceRange[1]}
-                  </span>
+                <div className="flex gap-2 text-sm text-muted-foreground">
+                  <span>₹{priceRange[0].toLocaleString('en-IN')}</span>
+                  <span>–</span>
+                  <span>₹{priceRange[1].toLocaleString('en-IN')}</span>
                 </div>
               </div>
             </div>
 
             {/* Clear Filters */}
-            {(selectedCategory !== 'All' || searchTerm || priceRange[1] !== 500) && (
+            {(selectedCategory !== 'All' || searchTerm || priceRange[1] !== MAX_PRICE) && (
               <button
                 onClick={() => {
                   setSelectedCategory('All');
                   setSearchTerm('');
-                  setPriceRange([0, 500]);
+                  setPriceRange([0, MAX_PRICE]);
                 }}
                 className="w-full flex items-center justify-center gap-2 bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground px-4 py-2 rounded-lg transition-colors duration-200"
               >

@@ -42,7 +42,7 @@ function matchProducts(text: string) {
 }
 
 function formatProducts(products: typeof PRODUCTS) {
-  return products.map((p) => `• **${p.name}** — $${p.price} (${p.category}) ⭐ ${p.rating}\n  ${p.description}`).join('\n\n');
+  return products.map((p) => `• **${p.name}** — ₹${p.price.toLocaleString('en-IN')} (${p.category}) ⭐ ${p.rating}\n  ${p.description}`).join('\n\n');
 }
 
 function buildReply(userText: string): string {
