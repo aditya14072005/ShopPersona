@@ -22,6 +22,50 @@ import { useRef } from 'react';
 import { PRODUCTS as STATIC_PRODUCTS } from '@/lib/products';
 import type { Product } from '@/lib/products';
 
+// ─── HF Dataset Loader Button ─────────────────────────────────────────────────
+function HFDatasetButton() {
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [message, setMessage] = useState('');
+
+  const handleLoad = async () => {
+    if (!confirm('This will seed Firestore with up to 100 Amazon Electronics products from Hugging Face. Continue?')) return;
+    setStatus('loading');
+    setMessage('');
+    try {
+      const res = await fetch('/api/seed-products', { method: 'POST' });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setStatus('done');
+      setMessage(`✅ Seeded ${data.seeded} products successfully!`);
+    } catch (err) {
+      setStatus('error');
+      setMessage(err instanceof Error ? err.message : 'Failed to load dataset');
+    }
+    setTimeout(() => { setStatus('idle'); setMessage(''); }, 5000);
+  };
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        onClick={handleLoad}
+        disabled={status === 'loading'}
+        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 ${
+          status === 'done'  ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+          status === 'error' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+          'bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20'
+        }`}
+      >
+        {status === 'loading' ? (
+          <><span className="w-4 h-4 border-2 border-primary/40 border-t-primary rounded-full animate-spin" /> Loading HF Dataset…</>
+        ) : (
+          <><span className="text-base">🤗</span> Load HF Dataset</>
+        )}
+      </button>
+      {message && <p className="text-xs text-muted-foreground max-w-xs text-right">{message}</p>}
+    </div>
+  );
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Order {
   id: string;
@@ -1887,9 +1931,12 @@ export default function AdminDashboard() {
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
-          <p className="text-muted-foreground text-sm mt-1">Live store management</p>
+        <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
+            <p className="text-muted-foreground text-sm mt-1">Live store management</p>
+          </div>
+          <HFDatasetButton />
         </div>
 
         {/* Tab bar */}
